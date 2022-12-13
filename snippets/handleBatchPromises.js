@@ -18,8 +18,7 @@ function handleBatchPromises(inputArray, callback /* add any extra parameters */
     //recursive function
 
     function handleRecursion(arr, index /* add any necessary parameters */){
-
-        //Recursive function
+        
         //Base case: when the last element of the array is reached
 
         return new Promise((resolve) => {
