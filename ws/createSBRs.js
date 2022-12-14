@@ -382,7 +382,7 @@ module.exports.main = async function (ffCollection, vvClient, response) {
                     
                     const batchResultProcess = await Promise.all(batchArr.map(element =>{ 
                         
-                        return createSBRs(CPRID, element, CPR_RevisionID)
+                        return createSBRs(element, CPRID, CPR_RevisionID)
         
                     }))
 
@@ -401,7 +401,7 @@ module.exports.main = async function (ffCollection, vvClient, response) {
 
                 for (let i = 0; i < arr.length; i++) {
 
-                    await createSBRs(CPRID, i, CPR_RevisionID);
+                    await createSBRs(i, CPRID, CPR_RevisionID);
 
                 }    
 
