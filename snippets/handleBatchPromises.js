@@ -13,23 +13,23 @@
     Revision Notes: Franco Petosa Ayala: Script created. 
 */
 
-function handleBatchPromises(inputArray, callback /* add any extra parameters */){
+function handleBatchPromises(inputArray, callback, objData){
 
     //recursive function
 
-    function handleRecursion(arr, index /* add any necessary parameters */){
+    function handleRecursion(arr, index, objData){
         
         //Base case: when the last element of the array is reached
 
         return new Promise((resolve) => {
 
-            callback(arr[index] /* add any necessary parameters */)
+            callback(arr[index], objData)
             .then(() => {
 
                 //if the position next to the current is defined, it means there still is a record to process
                 if(arr[index + 1]){
 
-                    resolve(handleRecursion(arr, index + 1  /* add any necessary parameters */ ))
+                    resolve(handleRecursion(arr, index + 1, objData ))
 
                 }else{
 
@@ -82,6 +82,6 @@ function handleBatchPromises(inputArray, callback /* add any extra parameters */
     const segmentedArray = createArraySegments(inputArray, segmentSize);
 
     return Promise.all(segmentedArray.map(array => {
-        return handleRecursion(array, 0 /* add any extra parameters */)
+        return handleRecursion(array, 0, objData)
     }))
 }
