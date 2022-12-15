@@ -197,8 +197,8 @@ module.exports.main = async function (ffCollection, vvClient, response) {
         }
         return vvClientRes;
     }
-
-    function createSBRs(numb, CPRID, CPR_RevisionID){
+    
+    function createSBRs(numb, CPRID, CPR_RevisionID, revisionIdArr){
 
         const postFormData = {};
         postFormData.Name = 'Name' + numb;
@@ -211,33 +211,45 @@ module.exports.main = async function (ffCollection, vvClient, response) {
             .then((res) => checkMetaAndStatus(res, shortDescription))
             .then((res) => checkDataPropertyExists(res, shortDescription))
             .then((res) => checkDataIsNotEmpty(res, shortDescription))
-            .then((res) => vvClient.forms.relateForm(res.data.revisionId, CPR_RevisionID))
-            .then((res) => parseRes(res))
-            .then((res) => checkMetaAndStatus(res, shortDescription))
+        //    .then((res) => vvClient.forms.relateForm(res.data.revisionId, CPR_RevisionID))
+        //    .then((res) => parseRes(res))
+        //    .then((res) => checkMetaAndStatus(res, shortDescription))
+            .then((res) => revisionIdArr.push(res.data.revisionId))
             .then(() => 'created')
             .catch((error) => error)
 
 
     }
 
-    function handleBatchPromises(inputArray, callback, formID, revisionID){
+
+    function relateSBRs(SBRrevisionID, CPR_RevisionID){
+
+        return vvClient.forms.relateForm(SBRrevisionID, CPR_RevisionID)
+            .then((res) => parseRes(res))
+            .then((res) => checkMetaAndStatus(res, shortDescription))
+            .then(() => 'related')
+            .catch((error) => error)
+
+    }
+
+    function handleBatchPromises(inputArray, callback, formID, revisionID, revisionIDarr){
 
         //recursive function
 
-        function handleRecursion(arr, index, formID, revisionID){
+        function handleRecursion(arr, index, formID, revisionID, revisionIDarr){
 
             //Recursive function
             //Base case: when the last element of the array is reached
 
             return new Promise((resolve) => {
 
-                callback(arr[index], formID, revisionID)
+                callback(arr[index], formID, revisionID, revisionIDarr)
                 .then(() => {
 
                     //if the position next to the current is defined, it means there still is a record to process
                     if(arr[index + 1]){
 
-                        resolve(handleRecursion(arr, index + 1, formID, revisionID))
+                        resolve(handleRecursion(arr, index + 1, formID, revisionID, revisionIDarr))
 
                     }else{
 
@@ -283,25 +295,106 @@ module.exports.main = async function (ffCollection, vvClient, response) {
 
         //configurable variables
 
-        const batchLimit = 25; //this value can be modified
+        const batchLimit = 50; //this value can be modified
 
         const segmentSize = calculateSegmentSize(inputArray, batchLimit);
 
         const segmentedArray = createArraySegments(inputArray, segmentSize);
 
         return Promise.all(segmentedArray.map(array => {
-            return handleRecursion(array, 0, formID, revisionID)
+            return handleRecursion(array, 0, formID, revisionID, revisionIDarr)
         }))
     }
 
-    function handleRecursion(arr, index, CPRID, CPR_RevisionID){
+
+    function handleBatchPromises2(inputArray, callback, revisionID){
+
+        //recursive function
+
+        function handleRecursion(arr, index, revisionID){
+
+            //Recursive function
+            //Base case: when the last element of the array is reached
+
+            return new Promise((resolve) => {
+
+                callback(arr[index], revisionID)
+                .then(() => {
+
+                    //if the position next to the current is defined, it means there still is a record to process
+                    if(arr[index + 1]){
+
+                        resolve(handleRecursion(arr, index + 1, revisionID))
+
+                    }else{
+
+                        resolve();
+                    }
+                })
+            })
+        }
+
+        //aux functions
+
+        function calculateSegmentSize(inputArr, batchLimit){
+        
+            const arrSize = inputArr.length;
+            const segmentSize = Math.ceil(arrSize / batchLimit);
+            return segmentSize;
+        
+        }
+
+        function createArraySegments(inputArray, segmentSize) {
+
+            // Creates an array of arrays of size segmentSize
+            function reducer(previousValue, currentValue, index) {
+                const segmentIndex = Math.floor(index / segmentSize);
+        
+                // If there is no array(segment) at this index, create one
+                if (!previousValue[segmentIndex]) {
+                    previousValue[segmentIndex] = [];
+                }
+            
+                // Add the current value to the array(segment)
+                previousValue[segmentIndex].push(currentValue);
+            
+                return previousValue;
+            }
+        
+            const initialValue = [];
+        
+            const segmentedArray = inputArray.reduce(reducer, initialValue);
+        
+            return segmentedArray;
+        }
+
+        //configurable variables
+
+        const batchLimit = 50; //this value can be modified
+
+        const segmentSize = calculateSegmentSize(inputArray, batchLimit);
+
+        const segmentedArray = createArraySegments(inputArray, segmentSize);
+
+        return Promise.all(segmentedArray.map(array => {
+            return handleRecursion(array, 0, revisionID)
+        }))
+    }
+
+
+
+
+
+
+
+    function handleRecursion(arr, index, CPRID, CPR_RevisionID, SBRrevisionIDarr){
 
         //Recursive function
         //Base case: when the last element of the array is reached
-
+        
         return new Promise(function(resolve){
 
-            createSBRs(CPRID, arr[index], CPR_RevisionID)
+            createSBRs(arr[index], CPRID, CPR_RevisionID, SBRrevisionIDarr)
             .then((promiseResult) => {
 
                 //verify if the SBR process result failed
@@ -314,7 +407,7 @@ module.exports.main = async function (ffCollection, vvClient, response) {
 
                 //if the position next to the current is defined, it means there still is a record to process
                 if(arr[index + 1]){
-                    resolve(handleRecursion(arr, index + 1, CPRID, CPR_RevisionID))
+                    resolve(handleRecursion(arr, index + 1, CPRID, CPR_RevisionID, SBRrevisionIDarr))
                 }else{
                     //if the next position in the array is undefined it means the current position is the last element from the array
                     resolve();
@@ -325,6 +418,41 @@ module.exports.main = async function (ffCollection, vvClient, response) {
         })
 
     }
+
+    function handleRecursion2(arr, index, CPRID, CPR_RevisionID){
+
+        //Recursive function
+        //Base case: when the last element of the array is reached
+        let revisionIdarr = []
+        return new Promise(function(resolve){
+
+            relateSBRs(arr[index], CPR_RevisionID)
+            .then((promiseResult) => {
+
+                //verify if the SBR process result failed
+                if(promiseResult != 'related'){
+                    //save the error on the error log array
+                    errorLog.push(promiseResult);
+                }
+
+                //no matter the result continue processing
+
+                //if the position next to the current is defined, it means there still is a record to process
+                if(arr[index + 1]){
+                    resolve(handleRecursion2(arr, index + 1, CPRID, CPR_RevisionID))
+                }else{
+                    //if the next position in the array is undefined it means the current position is the last element from the array
+                    resolve();
+                }
+            })
+
+
+        })
+
+    }
+
+
+
 
     function createArraySegments(inputArray, segmentSize) {
 
@@ -376,13 +504,15 @@ module.exports.main = async function (ffCollection, vvClient, response) {
 
             case 'batch':
 
+                let revisionIdArr = []
+
                 for (let i = 0; i < arr.length; i += batchSize) {
 
                     const batchArr = arr.slice(i, i + batchSize);
                     
                     const batchResultProcess = await Promise.all(batchArr.map(element =>{ 
                         
-                        return createSBRs(element, CPRID, CPR_RevisionID)
+                        return createSBRs(element, CPRID, CPR_RevisionID, revisionIdArr)
         
                     }))
 
@@ -393,32 +523,56 @@ module.exports.main = async function (ffCollection, vvClient, response) {
                         }
                     })
                 }
+                // Relate the already created SBR
+                for (let i = 0; i < revisionIdArr.length; i += batchSize) {
+
+                    const batchArr = revisionIdArr.slice(i, i + batchSize);
+                    
+                    const batchResultProcess = await Promise.all(batchArr.map(revID =>{ 
+                        
+                        return relateSBRs(revID,  CPR_RevisionID)
+        
+                    }))
+
+                    //identify if any request could not be fullfillied
+                    batchResultProcess.forEach(promiseResult => {
+                        if(promiseResult != 'related'){
+                            errorLog.push(promiseResult);
+                        }
+                    })
+                }
 
                 
             break;
 
             case 'one by one':
-
+                let revisionIdarr = []
                 for (let i = 0; i < arr.length; i++) {
+                    await createSBRs(i, CPRID, CPR_RevisionID, revisionIdarr);
+                }    
 
-                    await createSBRs(i, CPRID, CPR_RevisionID);
-
+                for (let i = 0; i < revisionIdarr.length; i++) {
+                    await relateSBRs(revisionIdarr[i],  CPR_RevisionID)
                 }    
 
                 
             break;
 
             case 'recursion':
+                let revisionIdRecursionArr = [] 
+                await handleRecursion(arr, 0, CPRID, CPR_RevisionID, revisionIdRecursionArr);
 
-                await handleRecursion(arr, 0, CPRID, CPR_RevisionID);
+                 
+                await handleRecursion2(revisionIdRecursionArr, 0, CPRID, CPR_RevisionID); 
 
                 
             break;
 
             case 'mix':
+                let revisionIdMixArr = [] 
+                await handleBatchPromises(arr, createSBRs, CPRID, CPR_RevisionID, revisionIdMixArr);
 
-                await handleBatchPromises(arr, createSBRs, CPRID, CPR_RevisionID);
-
+                await handleBatchPromises2(revisionIdMixArr, relateSBRs, CPR_RevisionID)
             break;
         
             default:
