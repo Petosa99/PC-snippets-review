@@ -1,87 +1,60 @@
 /*
-    Script Name:    handleBatchPromises
+    Script Name:    recursiveBatchHandling
     Customer:       VisualVault
     Purpose:        The purpose of this snippet is to process a large number of records using batches and recursion
     Parameters:     The following represent variables passed into the function:  
-                    -inputArray: array of records to process
-                    -callback: callback function to process the records
-                    -segmentSize: number value that represents the size of the segmented arrays
-    Return Value:   The following represents the value being returned from this function:
-                    None
+                    - inputArray: array of records to process
+                    - callback: callback function to process the records
+                    - paramsArray: array of parameters for the callback function
+    Return Value:   Promise
     Date of Dev: 12/12/2022
     Last Rev Date: 12/12/2022
-    Revision Notes: Franco Petosa Ayala: Script created. 
+    Revision Notes: 12/12/2022 - Franco Petosa Ayala: Script created. 
+                    12/26/2022 - Emanuel Jofré: Rename identifiers and simplify code.
 */
 
-function handleBatchPromises(inputArray, callback, paramsArr){
+const batchLimit = 25; // Move this to the Configurable Variables section
 
-    //recursive function
+function recursiveBatchHandling(inputArray, callback, paramsArray) {
+  function createBatches(inputArray, batchSize) {
+    // Creates an array of arrays of size batchSize
+    function reducer(previousValue, currentValue, index) {
+      const batchIndex = Math.floor(index / batchSize);
 
-    function handleRecursion(arr, index){
-        
-        //Base case: when the last element of the array is reached
+      // If there is no batch at this index, create one
+      if (!previousValue[batchIndex]) {
+        previousValue[batchIndex] = [];
+      }
 
-        return new Promise((resolve) => {
+      // Add the current value to the batch
+      previousValue[batchIndex].push(currentValue);
 
-            callback(arr[index], ...paramsArr)
-            .then(() => {
-
-                //if the position next to the current is defined, it means there still is a record to process
-                if(arr[index + 1]){
-
-                    resolve(handleRecursion(arr, index + 1));
-
-                }else{
-
-                    resolve();
-                }
-            })
-        })
+      return previousValue;
     }
 
-    //aux functions
+    const initialValue = [];
+    const batch = inputArray.reduce(reducer, initialValue);
 
-    function calculateSegmentSize(inputArr, batchLimit){
-    
-        const arrSize = inputArr.length;
-        const segmentSize = Math.ceil(arrSize / batchLimit);
-        return segmentSize;
-    
-    }
+    return batch;
+  }
 
-    function createArraySegments(inputArray, segmentSize) {
+  function recursionHandling(arr, index = 0) {
+    //Base case: when the last element of the array is reached
 
-        // Creates an array of arrays of size segmentSize
-        function reducer(previousValue, currentValue, index) {
-            const segmentIndex = Math.floor(index / segmentSize);
-      
-            // If there is no array(segment) at this index, create one
-            if (!previousValue[segmentIndex]) {
-                previousValue[segmentIndex] = [];
-            }
-        
-            // Add the current value to the array(segment)
-            previousValue[segmentIndex].push(currentValue);
-        
-            return previousValue;
+    return new Promise((resolve) => {
+      callback(arr[index], ...paramsArray).then(() => {
+        //if the position next to the current is defined, it means there still is a record to process
+        if (arr[index + 1]) {
+          resolve(recursionHandling(arr, index + 1));
+        } else {
+          resolve();
         }
-      
-        const initialValue = [];
-      
-        const segmentedArray = inputArray.reduce(reducer, initialValue);
-      
-        return segmentedArray;
-    }
+      });
+    });
+  }
 
-    //configurable variables
+  const batchSize = Math.ceil(inputArray / batchLimit);
+  const batches = createBatches(inputArray, batchSize);
 
-    const batchLimit = 25; //this value can be modified
-
-    const segmentSize = calculateSegmentSize(inputArray, batchLimit);
-
-    const segmentedArray = createArraySegments(inputArray, segmentSize);
-
-    return Promise.all(segmentedArray.map(array => {
-        return handleRecursion(array, 0);
-    }))
+  return Promise.all(batches.map((batch) => recursionHandling(batch)));
 }
